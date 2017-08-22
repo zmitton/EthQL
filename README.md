@@ -11,6 +11,7 @@ reimplemented it to create a sql DB as well
 
 put
 ---
+remember to overwrite keys. keys should be unique and indexed
 
 get
 ---
@@ -45,3 +46,7 @@ There is a function for switching heads. We need to shim inside this and mark an
 
 
 
+USE
+===
+- make geth
+- ./build/bin/geth --datadir /Users/zacharymitton/Desktop/ethiql-data --fast
