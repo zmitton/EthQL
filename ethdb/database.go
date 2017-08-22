@@ -17,11 +17,13 @@
 package ethdb
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -30,14 +32,18 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/iterator"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 
+	"database/sql"
+	_ "github.com/lib/pq"
+
 	gometrics "github.com/rcrowley/go-metrics"
 )
 
 var OpenFileLimit = 64
 
 type LDBDatabase struct {
-	fn string      // filename for reporting
-	db *leveldb.DB // LevelDB instance
+	fn    string      // filename for reporting
+	db    *leveldb.DB // LevelDB instance
+	sqldb *sql.DB
 
 	getTimer       gometrics.Timer // Timer for measuring the database get request counts and latencies
 	putTimer       gometrics.Timer // Timer for measuring the database put request counts and latencies
@@ -82,10 +88,18 @@ func NewLDBDatabase(file string, cache int, handles int) (*LDBDatabase, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	sqldb, err := sql.Open("postgres", "dbname=goeth sslmode=disable")
+
+	if err != nil {
+		logger.Info("Error", err)
+	}
+
 	return &LDBDatabase{
-		fn:  file,
-		db:  db,
-		log: logger,
+		fn:    file,
+		sqldb: sqldb,
+		db:    db,
+		log:   logger,
 	}, nil
 }
 
@@ -105,6 +119,20 @@ func (db *LDBDatabase) Put(key []byte, value []byte) error {
 
 	if db.writeMeter != nil {
 		db.writeMeter.Mark(int64(len(value)))
+	}
+	fmt.Printf("key", key)
+	fmt.Printf("value ", common.ToHex(value))
+	stmt, err := db.sqldb.Prepare("INSERT INTO leveldbvals VALUES ($1, $2)")
+	if err != nil {
+		db.log.Error("prepare", err)
+	}
+	res, err := stmt.Exec(common.Bytes2Hex(key), common.Bytes2Hex(value))
+	if err != nil {
+		db.log.Error("Error", err)
+	} else {
+		db.log.Info("Stmt", res)
+		db.log.Info("Key", "asdfasdf")
+		db.log.Info("Value", value)
 	}
 	return db.db.Put(key, value, nil)
 }
